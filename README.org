@@ -1,0 +1,35 @@
+#+TITLE: Manim Shapes Assignment
+
+This repository uses the community version of manim.
+
+* Installation
+Windows:
+- Go to the official instalation page: [[https://docs.manim.community/en/v0.2.0/installation.html][Manim Community Installation]]
+
+- If you have [[https://github.com/python-poetry/poetry][Poetry]]
+#+begin_src sh
+  poetry install # or pip install manim
+#+end_src
+
+Ubuntu:
+#+begin_src sh
+  sudo apt install ffmpeg python3-opencv python3-cairo libpango1.0-dev pkg-config python3-dev
+
+  poetry install # or pip install manim
+#+end_src
+
+* Usage
+- Once you have installed the dependencies. Activate the virual environment
+#+begin_src sh
+  poetry shell
+  # or
+  source ./venv/bin/activate 
+  # or windows
+  .\venv\Scripts\activate 
+#+end_src
+
+- Fill your preferences at triangle.ini file, then
+#+begin_src sh
+  python main.py 
+#+end_src
+The png output will stay at the images folder
