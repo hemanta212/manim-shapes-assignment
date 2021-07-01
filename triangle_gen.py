@@ -23,8 +23,8 @@ class TriangleGenerator(Scene):
         self.angles = [angle_a, angle_b, angle_c]
 
         # Create Lines as triangle sides
-        AB = Line(color=YELLOW).set_length(AB_len).next_to(LEFT)
-        CA = Line(color=RED).set_length(CA_len).next_to(LEFT)
+        AB = Line().set_length(AB_len).next_to(LEFT)
+        CA = Line().set_length(CA_len).next_to(LEFT)
         CA.set_angle(angle_a)
         BC = Line(AB.get_end(), CA.get_end())
         self.sides = VGroup(AB, BC, CA)
