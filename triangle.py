@@ -1,5 +1,8 @@
-from manim import *
+import os
+import json
+from configparser import ConfigParser
 from typing import Tuple
+from manim import *
 
 
 class Side(Line):
@@ -53,10 +56,48 @@ class Side(Line):
         return np.absolute(self.get_angle() - line.get_angle())
 
 
+class Setting:
+    def __init__(self, config_file):
+        assert os.path.exists(config_file)
+        config = ConfigParser()
+        config.read(config_file)
+
+        self.length_unit = config.get("triangle", "length_unit")
+        self.angle_unit = config.get("triangle", "angle_unit")
+        # Validate unit options
+        self.validate_units()
+
+        self.include_side_length = config.getboolean("triangle", "include_side_length")
+        self.include_angle = config.getboolean("triangle", "include_angle")
+        self.include_side_similarity = config.getboolean(
+            "triangle", "include_side_similarity"
+        )
+        self.include_angle_similarity = config.getboolean(
+            "triangle", "include_angle_similarity"
+        )
+        self.rotation = config.getfloat("triangle", "rotation")
+        self.side_lengths = json.loads(config.get("triangle", "side_lengths"))
+
+        self.validate_sides()
+
+    def validate_units(self):
+        # validate the sides of triangle
+        assert self.angle_unit == "radian" or self.angle_unit == "degrees"
+        assert self.length_unit == "cm" or self.length_unit == "m"
+
+    def validate_sides(self):
+        # validate the sides of triangle
+        assert len(self.side_lengths) == 3
+        assert None not in self.side_lengths
+        A, B, C = self.side_lengths
+        assert A + B > C and B + C > A and C + A > B
+
+
 class TriangleGenerator(Scene):
     def setup(self):
-        self.sides_len = [4.0, 5.0, 2.0]
-        self.equal_sides = [i for i in self.sides_len if self.sides_len.count(i) > 1]
+        self.settings = Setting("triangle.ini")
+        sides_len = self.settings.side_lengths
+        self.equal_sides = [i for i in sides_len if sides_len.count(i) > 1]
 
     def construct(self):
         triangle = VGroup()
@@ -69,7 +110,8 @@ class TriangleGenerator(Scene):
 
         # Get equality signs for triangle sides
         self.side_signs = self.get_side_signs()
-        triangle.add(self.side_signs)
+        if self.settings.include_side_similarity:
+            triangle.add(self.side_signs)
 
         # Generate side length and unit labels beside each side
         AB, BC, CA = self.sides
@@ -79,7 +121,8 @@ class TriangleGenerator(Scene):
             CA: LEFT,
         }
         self.labels = self.get_side_labels(side_dir_map)
-        triangle.add(self.labels)
+        if self.settings.include_side_length:
+            triangle.add(self.labels)
 
         # Generate and position the angle signs
         angle_side_quad_map = {
@@ -88,11 +131,26 @@ class TriangleGenerator(Scene):
             CA: [(AB, BC), (-1, 1)],
         }
         self.angle_signs = self.get_angle_signs(angle_side_quad_map)
-        triangle.add(self.angle_signs)
+        if self.settings.include_angle:
+            triangle.add(self.angle_signs)
+
+        # Generate and position the angle labels
+        sign_c, sign_a, sign_b = self.angle_signs
+        angle_a, angle_b, angle_c = self.angles
+        sign_angle_map = {
+            sign_a: angle_a,
+            sign_b: angle_b,
+            sign_c: angle_c,
+        }
+        figure_center = triangle.get_center_of_mass()
+        angle_labels = self.get_angle_labels(sign_angle_map, figure_center)
+        if self.settings.include_angle:
+            triangle.add(angle_labels)
 
         # Reset triangle position
         triangle.move_to(ORIGIN)
-        self.play(Create(triangle))
+        triangle.rotate_in_place(self.settings.rotation * DEGREES)
+        self.add(triangle)
 
     def get_sides(self) -> VGroup:
         """
@@ -101,7 +159,7 @@ class TriangleGenerator(Scene):
         :Returns:
         VGroup of sides
         """
-        AB_len, BC_len, CA_len = self.sides_len
+        AB_len, BC_len, CA_len = self.settings.side_lengths
         angle_a = self.angles[0]
         # Create Lines as triangle sides
         AB = Side().set_length(AB_len).next_to(LEFT)
@@ -113,12 +171,13 @@ class TriangleGenerator(Scene):
 
     def get_angles(self) -> Tuple:
         # Derive angle from sides using the law of cosines
-        AB_len, BC_len, CA_len = self.sides_len
+        AB_len, BC_len, CA_len = self.settings.side_lengths
         angle_a = self.get_angle_cosine(CA_len, AB_len, BC_len)
         angle_b = self.get_angle_cosine(AB_len, BC_len, CA_len)
         angle_c = self.get_angle_cosine(BC_len, CA_len, AB_len)
         assert angle_a + angle_b + angle_c == PI
         return (angle_a, angle_b, angle_c)
+
     def get_side_signs(self) -> VGroup:
         """
         For a given triangle's 3 sides, return VGroup of equality signs
@@ -140,9 +199,11 @@ class TriangleGenerator(Scene):
         angle_signs = VGroup()
         for side, (lines, quadrant) in angle_side_quad_map.items():
             double = False
+            double_allowed = self.settings.include_angle_similarity
             # if side is not in equal sides then its corresponding angle will be double signed
             side_len = side.get_length()
-            if self.equal_sides and side_len not in self.equal_sides:
+            double_present = self.equal_sides and side_len not in self.equal_sides
+            if double_allowed and double_present:
                 double = True
             angle_sign = self.get_angle_sign(lines, quadrant, double=double)
             angle_signs.add(angle_sign)
@@ -188,10 +249,23 @@ class TriangleGenerator(Scene):
         """
         labels = VGroup()
         for side in self.sides:
-            unit = "m"
+            unit = self.settings.length_unit
             label = self.gen_side_label_text(side, unit=unit)
             direction = side_dir_map[side]
             label.next_to(side.get_midpoint(), direction, buff=0.3)
+            labels.add(label)
+        return labels
+
+    def get_angle_labels(self, sign_angle_map: dict, fig_center) -> VGroup:
+        """
+        Generate angle labels VGroup containing length of side and specified unit.
+        """
+        labels = VGroup()
+        for sign, angle in sign_angle_map.items():
+            unit = self.settings.angle_unit
+            label = self.gen_angle_label_tex(angle, unit=unit)
+            direction = Side(sign.get_center_of_mass(), fig_center).get_unit_vector()
+            label.next_to(sign.get_center_of_mass(), direction=direction)
             labels.add(label)
         return labels
 
@@ -213,8 +287,28 @@ class TriangleGenerator(Scene):
             unit_symb = "m"
         rounded_side = round(side_len, 2)
         tex_string = f"{rounded_side} {unit_symb}"
-        label = Text(tex_string).scale(0.5)
+        label = Text(tex_string).scale(0.6)
         return label
+
+    @staticmethod
+    def gen_angle_label_tex(angle: float, unit: str = "radian") -> Mobject:
+        """
+        Gives an angle + unit tex label mobject
+
+        :Params:
+        angle: float (in radian)
+        unit: str (degree/radian)
+        :Returns:
+        MathTex Object
+        """
+        unit_symb = r"^c"
+        if unit == "degrees":
+            angle = np.degrees(angle)
+            unit_symb = r"^\circ"
+        round_angle = round(angle, 2)
+        tex_string = f"{round_angle}{unit_symb}"
+        tex = MathTex(tex_string).scale(0.5)
+        return tex
 
     @staticmethod
     def get_angle_cosine(a, b, c):
