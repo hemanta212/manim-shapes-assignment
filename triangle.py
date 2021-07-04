@@ -51,7 +51,7 @@ class Side(Line):
 
 class TriangleGenerator(Scene):
     def setup(self):
-        self.sides_len = [5.0, 5.0, 5.0]
+        self.sides_len = [5.0, 5.0, 2.0]
         self.equal_sides = [i for i in self.sides_len if self.sides_len.count(i) > 1]
 
     def construct(self):
@@ -62,6 +62,15 @@ class TriangleGenerator(Scene):
         self.side_signs = self.get_side_signs()
         triangle.add(self.side_signs)
 
+        AB, BC, CA = self.sides
+        side_dir_map = {
+            AB: DOWN,
+            BC: RIGHT,
+            CA: LEFT,
+        }
+        self.labels = self.get_side_labels(side_dir_map)
+        triangle.add(self.labels)
+        triangle.move_to(ORIGIN)
         self.play(Create(triangle))
 
     def get_sides(self) -> VGroup:
@@ -76,7 +85,7 @@ class TriangleGenerator(Scene):
         angle_a = self.get_angle_cosine(CA_len, AB_len, BC_len)
         # Create Lines as triangle sides
         AB = Side().set_length(AB_len).next_to(LEFT)
-        CA = Side(color=YELLOW).set_length(CA_len).next_to(LEFT)
+        CA = Side().set_length(CA_len).next_to(LEFT)
         CA.set_angle(angle_a)
         BC = Side(AB.get_end(), CA.get_end()).set_length(BC_len)
         assert BC.get_length() == BC_len
@@ -113,6 +122,37 @@ class TriangleGenerator(Scene):
             sign.move_to(side.get_midpoint())
 
         return signs
+
+    def get_side_labels(self, side_dir_map: dict) -> VGroup:
+        labels = VGroup()
+        for side in self.sides:
+            unit = "m"
+            label = self.gen_side_label_text(side, unit=unit)
+            direction = side_dir_map[side]
+            label.next_to(side.get_midpoint(), direction, buff=0.3)
+            labels.add(label)
+        return labels
+
+    @staticmethod
+    def gen_side_label_text(side: Side, unit: str = "cm"):
+        """
+        Gives an side length + unit tex label mobject
+
+        :Params:
+        side: Side
+        unit: str (cm/m)
+        :Returns:
+        Text Object
+        """
+        unit_symb = "cm"
+        side_len = side.get_length()
+        if unit == "m":
+            side_len = side_len / 100.0
+            unit_symb = "m"
+        rounded_side = round(side_len, 2)
+        tex_string = f"{rounded_side} {unit_symb}"
+        label = Text(tex_string).scale(0.5)
+        return label
 
     @staticmethod
     def get_angle_cosine(a, b, c):
