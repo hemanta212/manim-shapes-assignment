@@ -6,7 +6,7 @@ class Side(Line):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_near_points_to(self, point, buff: float = 5.0) -> Tuple:
+    def get_near_points_to(self, point, buff: float = 0.7) -> Tuple:
         """
         Returns two near points on either side of a point of a 2d line
 
@@ -29,8 +29,8 @@ class Side(Line):
         # Generate correspoding y points for given x input
         output_y_points = [image_of_x(i) for i in input_x_points]
         # Generate3 (x,y,z) point on either side of given point from above info
-        right_point = np.ndarray((input_x_points[0], output_y_points[0], z_coord))
-        left_point = np.ndarray((input_x_points[1], output_y_points[1], z_coord))
+        right_point = (input_x_points[0], output_y_points[0], z_coord)
+        left_point = (input_x_points[1], output_y_points[1], z_coord)
         return (left_point, right_point)
 
     def align_normally(self, line: Line):
@@ -45,26 +45,86 @@ class Side(Line):
         normal_angle = np.arctan(new_slope)
         self.set_angle(normal_angle)
 
+    def get_length(self):
+        return round(super().get_length(), 2)
+
 
 class TriangleGenerator(Scene):
+    def setup(self):
+        self.sides_len = [5.0, 5.0, 5.0]
+        self.equal_sides = [i for i in self.sides_len if self.sides_len.count(i) > 1]
+
     def construct(self):
-        print(0)
-        line = Side(LEFT, RIGHT)
-        print(1)
-        sign = self.get_side_sign(line)
-        print(2)
-        self.play(Create(line))
-        self.play(Create(sign))
-        self.wait(4)
+        triangle = VGroup()
+        self.sides = self.get_sides()
+        triangle.add(self.sides)
+
+        self.side_signs = self.get_side_signs()
+        triangle.add(self.side_signs)
+
+        self.play(Create(triangle))
+
+    def get_sides(self) -> VGroup:
+        """
+        Constructs 3 closed lines of specified lengths to form triangle
+
+        :Returns:
+        VGroup of sides
+        """
+        AB_len, BC_len, CA_len = self.sides_len
+        # Derive angle from sides using the law of cosines
+        angle_a = self.get_angle_cosine(CA_len, AB_len, BC_len)
+        # Create Lines as triangle sides
+        AB = Side().set_length(AB_len).next_to(LEFT)
+        CA = Side(color=YELLOW).set_length(CA_len).next_to(LEFT)
+        CA.set_angle(angle_a)
+        BC = Side(AB.get_end(), CA.get_end()).set_length(BC_len)
+        assert BC.get_length() == BC_len
+        return VGroup(AB, BC, CA)
+
+    def get_side_signs(self) -> VGroup:
+        """
+        For a given triangle's 3 sides, return VGroup of equality signs
+        """
+        signs = VGroup()
+        for side in self.sides:
+            double = False
+            side_len = side.get_length()
+            if self.equal_sides and side_len in self.equal_sides:
+                double = True
+            side_sign = self.get_side_sign(side, double=double)
+            signs.add(side_sign)
+        return signs
 
     @staticmethod
-    def get_side_sign(side: Line, double: bool = False) -> Side:
-        # Construct a line 20% size of given side.
-        sign_len = 20 / 100.0 * side.get_length()
-        print(1.5)
-        sign = Side().set_length(sign_len)
-        print(1.6)
+    def get_side_sign(side: Side, double: bool = False) -> VGroup:
+        """
+        Generates equality signs of triangle.
+        """
+        sign = Side().scale(0.15)
         sign.align_normally(side)
-        print(1.7)
-        sign.move_to(side.get_midpoint())
-        return sign
+        signs = VGroup(sign)
+        if double:
+            signs.add(sign.copy())
+            r_point, l_point = side.get_near_points_to(side.get_midpoint())
+            sign.move_to(r_point)
+            signs[1].move_to(l_point)
+        else:
+            sign.move_to(side.get_midpoint())
+
+        return signs
+
+    @staticmethod
+    def get_angle_cosine(a, b, c):
+        """
+        Applies Law of cosines to get the required angle from given sides
+        cosA = (C^2 - B^2  - A^2) / (- 2 AB)
+
+        :Params:
+        a: first side
+        b: second side
+        c: third side
+        :Returns:
+        Angle in Radians
+        """
+        return np.arccos((c ** 2 - b ** 2 - a ** 2) / (-2.0 * a * b))
