@@ -48,20 +48,30 @@ class Side(Line):
     def get_length(self):
         return round(super().get_length(), 2)
 
+    def angle_with(self, line: Line):
+        """Return the angle in radian that a line makes with given line"""
+        return np.absolute(self.get_angle() - line.get_angle())
+
 
 class TriangleGenerator(Scene):
     def setup(self):
-        self.sides_len = [5.0, 5.0, 2.0]
+        self.sides_len = [4.0, 5.0, 2.0]
         self.equal_sides = [i for i in self.sides_len if self.sides_len.count(i) > 1]
 
     def construct(self):
         triangle = VGroup()
+        # Get all 3 angles of triangle
+        self.angles = self.get_angles()
+
+        # Generate side Lines of triangle
         self.sides = self.get_sides()
         triangle.add(self.sides)
 
+        # Get equality signs for triangle sides
         self.side_signs = self.get_side_signs()
         triangle.add(self.side_signs)
 
+        # Generate side length and unit labels beside each side
         AB, BC, CA = self.sides
         side_dir_map = {
             AB: DOWN,
@@ -70,6 +80,17 @@ class TriangleGenerator(Scene):
         }
         self.labels = self.get_side_labels(side_dir_map)
         triangle.add(self.labels)
+
+        # Generate and position the angle signs
+        angle_side_quad_map = {
+            AB: [(BC, CA), (-1, -1)],
+            BC: [(AB, CA), (1, 1)],
+            CA: [(AB, BC), (-1, 1)],
+        }
+        self.angle_signs = self.get_angle_signs(angle_side_quad_map)
+        triangle.add(self.angle_signs)
+
+        # Reset triangle position
         triangle.move_to(ORIGIN)
         self.play(Create(triangle))
 
@@ -81,8 +102,7 @@ class TriangleGenerator(Scene):
         VGroup of sides
         """
         AB_len, BC_len, CA_len = self.sides_len
-        # Derive angle from sides using the law of cosines
-        angle_a = self.get_angle_cosine(CA_len, AB_len, BC_len)
+        angle_a = self.angles[0]
         # Create Lines as triangle sides
         AB = Side().set_length(AB_len).next_to(LEFT)
         CA = Side().set_length(CA_len).next_to(LEFT)
@@ -91,6 +111,14 @@ class TriangleGenerator(Scene):
         assert BC.get_length() == BC_len
         return VGroup(AB, BC, CA)
 
+    def get_angles(self) -> Tuple:
+        # Derive angle from sides using the law of cosines
+        AB_len, BC_len, CA_len = self.sides_len
+        angle_a = self.get_angle_cosine(CA_len, AB_len, BC_len)
+        angle_b = self.get_angle_cosine(AB_len, BC_len, CA_len)
+        angle_c = self.get_angle_cosine(BC_len, CA_len, AB_len)
+        assert angle_a + angle_b + angle_c == PI
+        return (angle_a, angle_b, angle_c)
     def get_side_signs(self) -> VGroup:
         """
         For a given triangle's 3 sides, return VGroup of equality signs
@@ -99,11 +127,42 @@ class TriangleGenerator(Scene):
         for side in self.sides:
             double = False
             side_len = side.get_length()
-            if self.equal_sides and side_len in self.equal_sides:
+            if self.equal_sides and side_len not in self.equal_sides:
                 double = True
             side_sign = self.get_side_sign(side, double=double)
             signs.add(side_sign)
         return signs
+
+    def get_angle_signs(self, angle_side_quad_map: dict) -> VGroup:
+        """
+        For a given triangle's 3 angles, return VGroup of angle symbols
+        """
+        angle_signs = VGroup()
+        for side, (lines, quadrant) in angle_side_quad_map.items():
+            double = False
+            # if side is not in equal sides then its corresponding angle will be double signed
+            side_len = side.get_length()
+            if self.equal_sides and side_len not in self.equal_sides:
+                double = True
+            angle_sign = self.get_angle_sign(lines, quadrant, double=double)
+            angle_signs.add(angle_sign)
+        return angle_signs
+
+    def get_angle_sign(
+        self, lines: list, quadrant: Tuple[int, int], double: bool = False
+    ) -> VGroup:
+        "Get an Angle symbol for a given pair of adjacent line"
+        is_right = lines[0].angle_with(lines[1]) == PI / 2
+        other_angle = -1 in quadrant
+        make_angle_with_radius = lambda x: Angle(
+            *lines, elbow=is_right, quadrant=quadrant, other_angle=other_angle, radius=x
+        )
+        angle_sign = make_angle_with_radius(None)
+        angle_signs = VGroup(angle_sign)
+        if double:
+            angle_signs.add(make_angle_with_radius(0.5))
+
+        return angle_signs
 
     @staticmethod
     def get_side_sign(side: Side, double: bool = False) -> VGroup:
@@ -124,6 +183,9 @@ class TriangleGenerator(Scene):
         return signs
 
     def get_side_labels(self, side_dir_map: dict) -> VGroup:
+        """
+        Generate side labels VGroup containing length of side and specified unit.
+        """
         labels = VGroup()
         for side in self.sides:
             unit = "m"
@@ -134,7 +196,7 @@ class TriangleGenerator(Scene):
         return labels
 
     @staticmethod
-    def gen_side_label_text(side: Side, unit: str = "cm"):
+    def gen_side_label_text(side: Side, unit: str = "cm") -> Mobject:
         """
         Gives an side length + unit tex label mobject
 
