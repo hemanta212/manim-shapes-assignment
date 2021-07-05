@@ -62,11 +62,6 @@ class Setting:
         config = ConfigParser()
         config.read(config_file)
 
-        self.length_unit = config.get("triangle", "length_unit")
-        self.angle_unit = config.get("triangle", "angle_unit")
-        # Validate unit options
-        self.validate_units()
-
         self.include_side_length = config.getboolean("triangle", "include_side_length")
         self.include_angle = config.getboolean("triangle", "include_angle")
         self.include_side_similarity = config.getboolean(
@@ -76,14 +71,23 @@ class Setting:
             "triangle", "include_angle_similarity"
         )
         self.rotation = config.getfloat("triangle", "rotation")
-        self.side_lengths = json.loads(config.get("triangle", "side_lengths"))
+        self.length_units = config.get("triangle", "length_units").split(" ")
+        print(self.length_units)
+        self.angle_units = config.get("triangle", "angle_units").split(" ")
+        print(self.angle_units)
+        # Validate unit options
+        self.validate_units()
 
+        self.side_lengths = json.loads(config.get("triangle", "side_lengths"))
         self.validate_sides()
 
     def validate_units(self):
         # validate the sides of triangle
-        assert self.angle_unit == "radian" or self.angle_unit == "degrees"
-        assert self.length_unit == "cm" or self.length_unit == "m"
+        assert len(self.angle_units) == 3 and len(self.length_units) == 3
+        for a_unit in self.angle_units:
+            assert a_unit == "radian" or a_unit == "degrees"
+        for l_unit in self.length_units:
+            assert l_unit == "cm" or l_unit == "m"
 
     def validate_sides(self):
         # validate the sides of triangle
@@ -248,8 +252,8 @@ class TriangleGenerator(Scene):
         Generate side labels VGroup containing length of side and specified unit.
         """
         labels = VGroup()
-        for side in self.sides:
-            unit = self.settings.length_unit
+        units = self.settings.length_units
+        for side, unit in zip(self.sides, units):
             label = self.gen_side_label_text(side, unit=unit)
             direction = side_dir_map[side]
             label.next_to(side.get_midpoint(), direction, buff=0.3)
@@ -261,8 +265,8 @@ class TriangleGenerator(Scene):
         Generate angle labels VGroup containing length of side and specified unit.
         """
         labels = VGroup()
-        for sign, angle in sign_angle_map.items():
-            unit = self.settings.angle_unit
+        units = self.settings.angle_units
+        for (sign, angle), unit in zip(sign_angle_map.items(), units):
             label = self.gen_angle_label_tex(angle, unit=unit)
             direction = Side(sign.get_center_of_mass(), fig_center).get_unit_vector()
             label.next_to(sign.get_center_of_mass(), direction=direction)
