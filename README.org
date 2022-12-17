@@ -1,7 +1,10 @@
 #+TITLE: Manim Shapes Assignment
 
 This repository uses the community version of manim.
-Demonstration videos [[demonstration.mp4]]
+
+Assignment Instructions PDF: [[assignment.pdf]]
+
+Assignment Demonstration video: [[demonstration.mp4]]
 
 * Installation
 Windows:
